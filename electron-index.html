@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Control Panel - Electron</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .header {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px 20px;
+            text-align: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 300;
+        }
+
+        .control-panel {
+            background: rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            height: 200px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .ai-services {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            flex: 1;
+        }
+
+        .ai-service {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .service-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .service-checkbox {
+            width: 16px;
+            height: 16px;
+        }
+
+        .service-name {
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .service-status {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .service-controls {
+            display: flex;
+            gap: 5px;
+        }
+
+        .btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #4CAF50;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #45a049;
+        }
+
+        .btn-secondary {
+            background: #2196F3;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #1976D2;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #d32f2f;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .global-controls {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .global-input {
+            flex: 1;
+            padding: 10px;
+            border: none;
+            border-radius: 4px;
+            background: rgba(255, 255, 255, 0.9);
+            color: #333;
+            font-size: 14px;
+        }
+
+        .global-input::placeholder {
+            color: #666;
+        }
+
+        .webview-container {
+            position: absolute;
+            top: 200px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: #f0f0f0;
+        }
+
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .status-connected {
+            background: #4CAF50;
+        }
+
+        .status-disconnected {
+            background: #f44336;
+        }
+
+        .status-connecting {
+            background: #FF9800;
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        .log-panel {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            width: 300px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 8px;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+
+        .log-panel.visible {
+            display: block;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            opacity: 0.9;
+        }
+
+        .log-error {
+            color: #ff6b6b;
+        }
+
+        .log-success {
+            color: #51cf66;
+        }
+
+        .log-info {
+            color: #74c0fc;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AI Control Panel - Electron Edition</h1>
+    </div>
+
+    <div class="control-panel">
+        <div class="ai-services">
+            <div class="ai-service" data-service="chatgpt">
+                <div class="service-header">
+                    <input type="checkbox" class="service-checkbox" checked>
+                    <div class="status-indicator status-disconnected"></div>
+                    <span class="service-name">ChatGPT</span>
+                </div>
+                <div class="service-status">Not Connected</div>
+                <div class="service-controls">
+                    <button class="btn btn-primary start-session">Start</button>
+                    <button class="btn btn-danger stop-session" disabled>Stop</button>
+                    <button class="btn btn-secondary scrape-data" disabled>Scrape</button>
+                </div>
+            </div>
+
+            <div class="ai-service" data-service="claude">
+                <div class="service-header">
+                    <input type="checkbox" class="service-checkbox" checked>
+                    <div class="status-indicator status-disconnected"></div>
+                    <span class="service-name">Claude</span>
+                </div>
+                <div class="service-status">Not Connected</div>
+                <div class="service-controls">
+                    <button class="btn btn-primary start-session">Start</button>
+                    <button class="btn btn-danger stop-session" disabled>Stop</button>
+                    <button class="btn btn-secondary scrape-data" disabled>Scrape</button>
+                </div>
+            </div>
+
+            <div class="ai-service" data-service="mistral">
+                <div class="service-header">
+                    <input type="checkbox" class="service-checkbox" checked>
+                    <div class="status-indicator status-disconnected"></div>
+                    <span class="service-name">Mistral</span>
+                </div>
+                <div class="service-status">Not Connected</div>
+                <div class="service-controls">
+                    <button class="btn btn-primary start-session">Start</button>
+                    <button class="btn btn-danger stop-session" disabled>Stop</button>
+                    <button class="btn btn-secondary scrape-data" disabled>Scrape</button>
+                </div>
+            </div>
+
+            <div class="ai-service" data-service="gemini">
+                <div class="service-header">
+                    <input type="checkbox" class="service-checkbox" checked>
+                    <div class="status-indicator status-disconnected"></div>
+                    <span class="service-name">Gemini</span>
+                </div>
+                <div class="service-status">Not Connected</div>
+                <div class="service-controls">
+                    <button class="btn btn-primary start-session">Start</button>
+                    <button class="btn btn-danger stop-session" disabled>Stop</button>
+                    <button class="btn btn-secondary scrape-data" disabled>Scrape</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="global-controls">
+            <input type="text" class="global-input" placeholder="Type a message to send to all enabled AI panels...">
+            <button class="btn btn-primary" id="send-all">Send to All</button>
+            <button class="btn btn-secondary" id="scrape-all">Scrape All</button>
+            <button class="btn btn-secondary" id="toggle-logs">Logs</button>
+        </div>
+    </div>
+
+    <div class="webview-container">
+        <!-- Embedded webviews will be positioned here by Electron -->
+    </div>
+
+    <div class="log-panel" id="log-panel">
+        <div class="log-entry log-info">Electron AI Control Panel initialized</div>
+    </div>
+
+    <script src="electron-renderer.js"></script>
+</body>
+</html>
