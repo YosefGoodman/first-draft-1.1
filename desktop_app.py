@@ -2,6 +2,7 @@ import webview
 import threading
 import json
 import os
+import platform
 from datetime import datetime
 import requests
 from bs4 import BeautifulSoup
@@ -10,7 +11,9 @@ import time
 
 class AIBrowserApp:
     def __init__(self):
-        self.storage_path = "/home/ubuntu/scraped_data"
+        DEFAULT_WINDOWS_PATH = r"C:\Users\yosef\OneDrive\Desktop\Attachments"
+        DEFAULT_LINUX_PATH = "/home/ubuntu/scraped_data"
+        self.storage_path = os.environ.get('AI_STORAGE_PATH', DEFAULT_WINDOWS_PATH if platform.system() == 'Windows' else DEFAULT_LINUX_PATH)
         os.makedirs(self.storage_path, exist_ok=True)
         
         self.ai_services = {

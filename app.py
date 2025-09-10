@@ -154,7 +154,8 @@ class BrowserSession:
 
 class AIBrowserHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, directory="/home/ubuntu/repos/first-draft-1.1", **kwargs)
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        super().__init__(*args, directory=script_dir, **kwargs)
     
     def do_GET(self):
         if self.path == '/':
