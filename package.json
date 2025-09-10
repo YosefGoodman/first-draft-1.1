@@ -1,0 +1,58 @@
+{
+  "name": "ai-control-panel-electron",
+  "version": "1.0.0",
+  "description": "Electron-based AI Control Panel with embedded webviews for ChatGPT, Claude, Mistral, and Gemini",
+  "main": "electron-main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": [
+    "electron",
+    "ai",
+    "chatgpt",
+    "claude",
+    "mistral",
+    "gemini",
+    "automation"
+  ],
+  "author": "Devin AI",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^27.0.0",
+    "electron-builder": "^24.6.4"
+  },
+  "dependencies": {
+    "playwright": "^1.40.0"
+  },
+  "build": {
+    "appId": "com.aicontrolpanel.electron",
+    "productName": "AI Control Panel",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron-main.js",
+      "electron-renderer.js",
+      "electron-preload.js",
+      "electron-index.html",
+      "static/**/*",
+      "app.py",
+      "database.py",
+      "launch_chrome_debug.py",
+      "requirements.txt"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  }
+}
