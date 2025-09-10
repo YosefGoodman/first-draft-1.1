@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Chatbot - 4 Panel Web</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <h1>AI Chatbot - 4 Panel Web</h1>
+        </header>
+        
+        <main class="main-content">
+            <div class="panels-container">
+                <div class="ai-panel" data-model="openai">
+                    <div class="panel-header">
+                        <label class="panel-checkbox">
+                            <input type="checkbox" checked>
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="material-icons panel-icon">chat</span>
+                        <span class="panel-title">OpenAI</span>
+                        <div class="connection-status connected">Connected</div>
+                    </div>
+                    <div class="messages-container">
+                        <div class="empty-state">
+                            <span class="material-icons">chat_bubble_outline</span>
+                            <span>No messages yet</span>
+                        </div>
+                    </div>
+                    <div class="input-container">
+                        <div class="input-row">
+                            <input type="text" class="message-input" placeholder="Type your message..." disabled>
+                            <button class="send-button" disabled>
+                                <span class="material-icons">send</span>
+                            </button>
+                        </div>
+                        <button class="copy-button" disabled>
+                            <span class="material-icons">content_copy</span>
+                            Copy Response
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ai-panel" data-model="mistral">
+                    <div class="panel-header">
+                        <label class="panel-checkbox">
+                            <input type="checkbox">
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="material-icons panel-icon">psychology</span>
+                        <span class="panel-title">Mistral</span>
+                        <div class="connection-status connected">Connected</div>
+                    </div>
+                    <div class="messages-container">
+                        <div class="empty-state">
+                            <span class="material-icons">chat_bubble_outline</span>
+                            <span>No messages yet</span>
+                        </div>
+                    </div>
+                    <div class="input-container">
+                        <div class="input-row">
+                            <input type="text" class="message-input" placeholder="Panel disabled" disabled>
+                            <button class="send-button" disabled>
+                                <span class="material-icons">send</span>
+                            </button>
+                        </div>
+                        <button class="copy-button" disabled>
+                            <span class="material-icons">content_copy</span>
+                            Copy Response
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ai-panel" data-model="llama">
+                    <div class="panel-header">
+                        <label class="panel-checkbox">
+                            <input type="checkbox">
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="material-icons panel-icon">smart_toy</span>
+                        <span class="panel-title">LLaMA</span>
+                        <div class="connection-status connected">Connected</div>
+                    </div>
+                    <div class="messages-container">
+                        <div class="empty-state">
+                            <span class="material-icons">chat_bubble_outline</span>
+                            <span>No messages yet</span>
+                        </div>
+                    </div>
+                    <div class="input-container">
+                        <div class="input-row">
+                            <input type="text" class="message-input" placeholder="Panel disabled" disabled>
+                            <button class="send-button" disabled>
+                                <span class="material-icons">send</span>
+                            </button>
+                        </div>
+                        <button class="copy-button" disabled>
+                            <span class="material-icons">content_copy</span>
+                            Copy Response
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ai-panel" data-model="claude">
+                    <div class="panel-header">
+                        <label class="panel-checkbox">
+                            <input type="checkbox">
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="material-icons panel-icon">assistant</span>
+                        <span class="panel-title">Claude</span>
+                        <div class="connection-status connected">Connected</div>
+                    </div>
+                    <div class="messages-container">
+                        <div class="empty-state">
+                            <span class="material-icons">chat_bubble_outline</span>
+                            <span>No messages yet</span>
+                        </div>
+                    </div>
+                    <div class="input-container">
+                        <div class="input-row">
+                            <input type="text" class="message-input" placeholder="Panel disabled" disabled>
+                            <button class="send-button" disabled>
+                                <span class="material-icons">send</span>
+                            </button>
+                        </div>
+                        <button class="copy-button" disabled>
+                            <span class="material-icons">content_copy</span>
+                            Copy Response
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="ask-all-section">
+                <h3>Ask All Enabled Models</h3>
+                <div class="ask-all-input">
+                    <input type="text" id="ask-all-input" placeholder="Type a question to send to all enabled models...">
+                    <button id="ask-all-button">
+                        <span class="material-icons">send</span>
+                    </button>
+                </div>
+                <div class="ask-all-loading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <span>Sending to all enabled models...</span>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
