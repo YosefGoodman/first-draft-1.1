@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Iframe Compatibility Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-container { margin: 20px 0; border: 1px solid #ccc; padding: 10px; }
+        iframe { width: 100%; height: 400px; border: 1px solid #ddd; }
+        .error { color: red; font-weight: bold; }
+        .success { color: green; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>AI Website Iframe Compatibility Test</h1>
+    
+    <div class="test-container">
+        <h2>ChatGPT (chatgpt.com)</h2>
+        <iframe src="https://chatgpt.com" onload="console.log('ChatGPT loaded')" onerror="console.log('ChatGPT failed')"></iframe>
+    </div>
+    
+    <div class="test-container">
+        <h2>Claude (claude.ai/new)</h2>
+        <iframe src="https://claude.ai/new" onload="console.log('Claude loaded')" onerror="console.log('Claude failed')"></iframe>
+    </div>
+    
+    <div class="test-container">
+        <h2>Mistral (chat.mistral.ai/chat)</h2>
+        <iframe src="https://chat.mistral.ai/chat" onload="console.log('Mistral loaded')" onerror="console.log('Mistral failed')"></iframe>
+    </div>
+    
+    <div class="test-container">
+        <h2>Gemini (gemini.google.com)</h2>
+        <iframe src="https://gemini.google.com" onload="console.log('Gemini loaded')" onerror="console.log('Gemini failed')"></iframe>
+    </div>
+    
+    <div class="test-container">
+        <h2>Copilot (copilot.microsoft.com)</h2>
+        <iframe src="https://copilot.microsoft.com" onload="console.log('Copilot loaded')" onerror="console.log('Copilot failed')"></iframe>
+    </div>
+    
+    <div class="test-container">
+        <h2>DeepSeek (chat.deepseek.com)</h2>
+        <iframe src="https://chat.deepseek.com" onload="console.log('DeepSeek loaded')" onerror="console.log('DeepSeek failed')"></iframe>
+    </div>
+    
+    <script>
+        window.addEventListener('message', function(event) {
+            console.log('Message from iframe:', event.origin, event.data);
+        });
+        
+        document.addEventListener('securitypolicyviolation', function(e) {
+            console.error('CSP Violation:', e.violatedDirective, e.blockedURI);
+        });
+    </script>
+</body>
+</html>

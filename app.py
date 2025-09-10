@@ -1,0 +1,375 @@
+#!/usr/bin/env python3
+import json
+import os
+import time
+import threading
+import http.server
+import socketserver
+from datetime import datetime
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from webdriver_manager.chrome import ChromeDriverManager
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
+import requests
+from bs4 import BeautifulSoup
+from sentence_transformers import SentenceTransformer
+from urllib.parse import urlparse, parse_qs
+import signal
+import sys
+
+STORAGE_PATH = "/home/ubuntu/scraped_data"
+if not os.path.exists(STORAGE_PATH):
+    os.makedirs(STORAGE_PATH)
+
+embedding_model = None
+browser_sessions = {}
+server = None
+
+def get_embedding_model():
+    global embedding_model
+    if embedding_model is None:
+        embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
+    return embedding_model
+
+class BrowserSession:
+    def __init__(self, service_name, url):
+        self.service_name = service_name
+        self.url = url
+        self.driver = None
+        self.is_active = False
+        self.last_scraped_data = None
+        
+    def start_session(self):
+        try:
+            print(f"Starting simulated browser session for {self.service_name} at {self.url}")
+            self.driver = "simulated_driver"  # Simulate driver object
+            self.is_active = True
+            return True
+        except Exception as e:
+            print(f"Failed to start browser session for {self.service_name}: {e}")
+            return False
+    
+    def inject_message(self, message):
+        if not self.is_active:
+            return False
+            
+        try:
+            print(f"Simulating message injection to {self.service_name}: {message}")
+            
+            timestamp = datetime.now().isoformat()
+            interaction_data = {
+                'timestamp': timestamp,
+                'service': self.service_name,
+                'message': message,
+                'response': f"Simulated response from {self.service_name}",
+                'status': 'simulated_success'
+            }
+            
+            filename = f"message_{self.service_name}_{timestamp.replace(':', '-')}.json"
+            filepath = os.path.join(STORAGE_PATH, filename)
+            
+            with open(filepath, 'w') as f:
+                json.dump(interaction_data, f, indent=2)
+            
+            return True
+            
+        except Exception as e:
+            print(f"Failed to inject message into {self.service_name}: {e}")
+            return False
+    
+    def scrape_current_data(self):
+        if not self.is_active:
+            return None
+            
+        try:
+            print(f"Simulating data scraping from {self.service_name}")
+            
+            simulated_content = f"Simulated scraped content from {self.service_name} at {datetime.now()}"
+            
+            scraped_data = {
+                'service': self.service_name,
+                'url': self.url,
+                'timestamp': datetime.now().isoformat(),
+                'title': f'{self.service_name} - Simulated Chat',
+                'chat_elements': [
+                    {
+                        'selector': '.message',
+                        'text': f'Sample message from {self.service_name}',
+                        'html': f'<div class="message">Sample message from {self.service_name}</div>'
+                    }
+                ],
+                'full_text': simulated_content,
+                'status': 'simulated'
+            }
+            
+            model = get_embedding_model()
+            embedding = model.encode(simulated_content)
+            scraped_data['embedding'] = embedding.tolist()
+            
+            self.last_scraped_data = scraped_data
+            return scraped_data
+            
+        except Exception as e:
+            print(f"Failed to scrape data from {self.service_name}: {e}")
+            return None
+    
+    def close_session(self):
+        if self.is_active:
+            print(f"Closing simulated session for {self.service_name}")
+            self.is_active = False
+            self.driver = None
+
+class AIBrowserHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory="/home/ubuntu/repos/first-draft-1.1", **kwargs)
+    
+    def do_GET(self):
+        if self.path == '/':
+            self.path = '/templates/index.html'
+        elif self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            response = {"status": "healthy", "timestamp": datetime.now().isoformat()}
+            self.wfile.write(json.dumps(response).encode())
+            return
+        elif self.path == '/get_browser_sessions':
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            sessions_info = {}
+            for service, session in browser_sessions.items():
+                sessions_info[service] = {
+                    'service': service,
+                    'url': session.url,
+                    'is_active': session.is_active,
+                    'has_data': session.last_scraped_data is not None
+                }
+            self.wfile.write(json.dumps(sessions_info).encode())
+            return
+        super().do_GET()
+    
+    def do_POST(self):
+        try:
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length)
+            data = json.loads(post_data.decode('utf-8'))
+            
+            self.send_response(200)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.end_headers()
+            
+            if self.path == '/start_browser_session':
+                result = start_browser_session(data)
+            elif self.path == '/close_browser_session':
+                result = close_browser_session(data)
+            elif self.path == '/inject_message':
+                result = inject_message(data)
+            elif self.path == '/scrape_chat_data':
+                result = scrape_chat_data(data)
+            elif self.path == '/send_message_to_ai':
+                result = send_message_to_ai(data)
+            else:
+                self.send_response(404)
+                self.end_headers()
+                return
+            
+            self.wfile.write(json.dumps(result).encode())
+            
+        except Exception as e:
+            self.send_response(500)
+            self.send_header('Content-type', 'application/json')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.end_headers()
+            error_response = {'error': str(e)}
+            self.wfile.write(json.dumps(error_response).encode())
+    
+    def do_OPTIONS(self):
+        self.send_response(200)
+        self.send_header('Access-Control-Allow-Origin', '*')
+        self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+        self.end_headers()
+
+def start_browser_session(data):
+    service = data.get('service')
+    url = data.get('url')
+    
+    if not service or not url:
+        return {'error': 'Missing service or URL'}
+    
+    if service in browser_sessions:
+        browser_sessions[service].close_session()
+    
+    session = BrowserSession(service, url)
+    success = session.start_session()
+    
+    if success:
+        browser_sessions[service] = session
+        return {
+            'success': True,
+            'service': service,
+            'url': url,
+            'status': 'Browser session started'
+        }
+    else:
+        return {'error': 'Failed to start browser session'}
+
+def close_browser_session(data):
+    service = data.get('service')
+    
+    if service in browser_sessions:
+        browser_sessions[service].close_session()
+        del browser_sessions[service]
+        return {'success': True, 'message': f'Closed session for {service}'}
+    
+    return {'error': 'Session not found'}
+
+def inject_message(data):
+    service = data.get('service')
+    message = data.get('message')
+    
+    if not service or not message:
+        return {'error': 'Missing service or message'}
+    
+    if service not in browser_sessions:
+        return {'error': 'Browser session not found'}
+    
+    session = browser_sessions[service]
+    success = session.inject_message(message)
+    
+    if success:
+        return {
+            'success': True,
+            'service': service,
+            'message': 'Message injected successfully'
+        }
+    else:
+        return {'error': 'Failed to inject message'}
+
+
+def scrape_chat_data(data):
+    service = data.get('service')
+    
+    if not service:
+        return {'error': 'Missing service'}
+    
+    if service not in browser_sessions:
+        return {'error': 'Browser session not found. Please start a session first.'}
+    
+    session = browser_sessions[service]
+    scraped_data = session.scrape_current_data()
+    
+    if not scraped_data:
+        return {'error': 'Failed to scrape data'}
+    
+    try:
+        filename = f"{service}_{int(time.time())}.json"
+        filepath = os.path.join(STORAGE_PATH, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(scraped_data, f, indent=2, ensure_ascii=False)
+        
+        return {
+            'success': True,
+            'filename': filename,
+            'filepath': filepath,
+            'data_preview': {
+                'title': scraped_data['title'],
+                'chat_elements_count': len(scraped_data['chat_elements']),
+                'text_length': len(scraped_data['full_text'])
+            }
+        }
+        
+    except Exception as e:
+        return {'error': str(e)}
+
+def get_scraped_files():
+    try:
+        files = []
+        for filename in os.listdir(STORAGE_PATH):
+            if filename.endswith('.json'):
+                filepath = os.path.join(STORAGE_PATH, filename)
+                stat = os.stat(filepath)
+                files.append({
+                    'filename': filename,
+                    'size': stat.st_size,
+                    'modified': datetime.fromtimestamp(stat.st_mtime).isoformat()
+                })
+        return {'files': files, 'storage_path': STORAGE_PATH}
+    except Exception as e:
+        return {'error': str(e)}
+
+def send_message_to_ai(data):
+    service = data.get('service')
+    message = data.get('message')
+    
+    if not service or not message:
+        return {'error': 'Missing service or message'}
+    
+    if service not in browser_sessions:
+        return {'error': 'Browser session not found'}
+    
+    session = browser_sessions[service]
+    
+    success = session.inject_message(message)
+    if not success:
+        return {'error': 'Failed to send message'}
+    
+    time.sleep(3)
+    
+    scraped_data = session.scrape_current_data()
+    if scraped_data:
+        filename = f"{service}_response_{int(time.time())}.json"
+        filepath = os.path.join(STORAGE_PATH, filename)
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(scraped_data, f, indent=2, ensure_ascii=False)
+    
+    latest_response = ""
+    if scraped_data and scraped_data['chat_elements']:
+        latest_response = scraped_data['chat_elements'][-1]['text'] if scraped_data['chat_elements'] else ""
+    
+    return {
+        'success': True,
+        'service': service,
+        'message_sent': message,
+        'response_preview': latest_response[:500],
+        'scraped_file': filename if scraped_data else None
+    }
+
+def signal_handler(sig, frame):
+    print('\nShutting down browser sessions...')
+    for session in browser_sessions.values():
+        session.close_session()
+    if server:
+        server.shutdown()
+    sys.exit(0)
+
+def main():
+    global server
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    PORT = 5001
+    print(f"Starting AI Browser Server on port {PORT}")
+    print(f"Storage path: {STORAGE_PATH}")
+    print("Open http://localhost:5001 in your browser")
+    
+    with socketserver.TCPServer(("", PORT), AIBrowserHandler) as httpd:
+        server = httpd
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            signal_handler(None, None)
+
+if __name__ == '__main__':
+    main()
