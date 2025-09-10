@@ -1,0 +1,8 @@
+{
+  "timestamp": "2025-09-10T02:20:00.000000",
+  "service": "chatgpt",
+  "message": "What is machine learning?",
+  "enhanced_message": "Context from previous conversations:\nPrevious discussion about AI and neural networks\nUser asked about deep learning concepts\n\nCurrent question: What is machine learning?",
+  "status": "ready_for_manual_input",
+  "instructions": "Please copy this enhanced message to the chatgpt tab and send it manually"
+}
