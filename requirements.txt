@@ -3,5 +3,4 @@ beautifulsoup4
 sentence-transformers
 playwright
 pywebview
-PyQt5
-PyQtWebEngine
+cef-capi-py

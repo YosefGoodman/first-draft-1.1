@@ -4,37 +4,41 @@ import json
 import threading
 import time
 import requests
-from PyQt5.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout, QLabel, QPushButton, QCheckBox, QTextEdit, QLineEdit, QFrame
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal, QObject, QUrl
-from PyQt5.QtGui import QFont
-from PyQt5.QtWebEngineWidgets import QWebEngineView
+import gi
+gi.require_version('Gtk', '3.0')
+from gi.repository import Gtk, Gdk, GLib
+import cef_capi as cef
 
-class WebEngineWidget(QWidget):
-    def __init__(self, service_name, url, parent=None):
-        super(WebEngineWidget, self).__init__(parent)
+class CEFBrowserWidget:
+    def __init__(self, service_name, url, parent_widget):
         self.service_name = service_name
         self.url = url
+        self.parent_widget = parent_widget
         self.browser = None
-        self.setMinimumSize(400, 300)
-        self.setupUI()
+        self.window_info = None
+        self.setup_browser()
         
-    def setupUI(self):
-        layout = QVBoxLayout()
-        self.browser = QWebEngineView()
-        self.browser.setUrl(QUrl(self.url))
-        layout.addWidget(self.browser)
-        self.setLayout(layout)
+    def setup_browser(self):
+        window_info = cef.WindowInfo()
+        window_info.parent_window = self.parent_widget.get_window().get_xid()
+        
+        browser_settings = cef.BrowserSettings()
+        
+        self.browser = cef.CreateBrowserSync(
+            window_info=window_info,
+            url=self.url,
+            browser_settings=browser_settings
+        )
         
     def load_url(self, url):
         if self.browser:
-            self.browser.setUrl(QUrl(url))
+            self.browser.GetMainFrame().LoadUrl(url)
             
     def get_browser(self):
         return self.browser
 
-class AIPanel(QWidget):
-    def __init__(self, service_id, service_name, service_url, parent=None):
-        super(AIPanel, self).__init__(parent)
+class AIPanel:
+    def __init__(self, service_id, service_name, service_url):
         self.service_id = service_id
         self.service_name = service_name
         self.service_url = service_url
@@ -42,84 +46,87 @@ class AIPanel(QWidget):
         self.is_active = False
         self.session_active = False
         
-        self.setupUI()
+        self.setup_ui()
         
-    def setupUI(self):
-        layout = QVBoxLayout()
+    def setup_ui(self):
+        self.panel_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=5)
+        self.panel_box.set_margin_left(5)
+        self.panel_box.set_margin_right(5)
+        self.panel_box.set_margin_top(5)
+        self.panel_box.set_margin_bottom(5)
         
-        header_layout = QHBoxLayout()
-        self.checkbox = QCheckBox()
-        self.checkbox.stateChanged.connect(self.toggle_active)
+        header_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
         
-        title_label = QLabel(self.service_name)
-        title_label.setFont(QFont("Arial", 12, QFont.Bold))
+        self.checkbox = Gtk.CheckButton()
+        self.checkbox.connect("toggled", self.toggle_active)
         
-        header_layout.addWidget(self.checkbox)
-        header_layout.addWidget(title_label)
-        header_layout.addStretch()
+        title_label = Gtk.Label(label=self.service_name)
+        title_label.set_markup(f"<b>{self.service_name}</b>")
         
-        self.status_label = QLabel("Inactive")
-        self.status_label.setStyleSheet("color: gray;")
+        header_box.pack_start(self.checkbox, False, False, 0)
+        header_box.pack_start(title_label, False, False, 0)
         
-        button_layout = QHBoxLayout()
-        self.start_button = QPushButton("Start Session")
-        self.start_button.clicked.connect(self.start_session)
-        self.start_button.setEnabled(False)
+        self.status_label = Gtk.Label(label="Inactive")
+        self.status_label.set_markup('<span color="gray">Inactive</span>')
         
-        self.scrape_button = QPushButton("Scrape Data")
-        self.scrape_button.clicked.connect(self.scrape_data)
-        self.scrape_button.setEnabled(False)
+        button_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=5)
         
-        button_layout.addWidget(self.start_button)
-        button_layout.addWidget(self.scrape_button)
+        self.start_button = Gtk.Button(label="Start Session")
+        self.start_button.connect("clicked", self.start_session)
+        self.start_button.set_sensitive(False)
         
-        self.browser_container = QFrame()
-        self.browser_container.setFrameStyle(QFrame.Box)
-        self.browser_container.setMinimumHeight(300)
-        self.browser_container.setStyleSheet("background-color: #f0f0f0; border: 1px solid #ccc;")
+        self.scrape_button = Gtk.Button(label="Scrape Data")
+        self.scrape_button.connect("clicked", self.scrape_data)
+        self.scrape_button.set_sensitive(False)
         
-        browser_layout = QVBoxLayout()
-        self.browser_placeholder = QLabel("Browser will appear here when session starts")
-        self.browser_placeholder.setAlignment(Qt.AlignCenter)
-        self.browser_placeholder.setStyleSheet("color: #666;")
-        browser_layout.addWidget(self.browser_placeholder)
-        self.browser_container.setLayout(browser_layout)
+        button_box.pack_start(self.start_button, True, True, 0)
+        button_box.pack_start(self.scrape_button, True, True, 0)
         
-        layout.addLayout(header_layout)
-        layout.addWidget(self.status_label)
-        layout.addLayout(button_layout)
-        layout.addWidget(self.browser_container)
+        self.browser_container = Gtk.Frame()
+        self.browser_container.set_size_request(400, 300)
         
-        self.setLayout(layout)
+        self.browser_placeholder = Gtk.Label(label="Browser will appear here when session starts")
+        self.browser_placeholder.set_markup('<span color="#666">Browser will appear here when session starts</span>')
+        self.browser_container.add(self.browser_placeholder)
         
-    def toggle_active(self, state):
-        self.is_active = state == Qt.Checked
-        self.start_button.setEnabled(self.is_active)
+        self.panel_box.pack_start(header_box, False, False, 0)
+        self.panel_box.pack_start(self.status_label, False, False, 0)
+        self.panel_box.pack_start(button_box, False, False, 0)
+        self.panel_box.pack_start(self.browser_container, True, True, 0)
+        
+        self.checkbox.set_active(True)
+        
+    def toggle_active(self, checkbox):
+        self.is_active = checkbox.get_active()
+        self.start_button.set_sensitive(self.is_active)
         if self.is_active:
-            self.status_label.setText("Active")
-            self.status_label.setStyleSheet("color: green;")
+            self.status_label.set_markup('<span color="green">Active</span>')
+            if not self.session_active:
+                GLib.idle_add(self.start_session, None)
         else:
-            self.status_label.setText("Inactive")
-            self.status_label.setStyleSheet("color: gray;")
+            self.status_label.set_markup('<span color="gray">Inactive</span>')
             if self.session_active:
-                self.stop_session()
+                self.stop_session(None)
                 
-    def start_session(self):
+    def start_session(self, button):
         if not self.session_active:
-            self.browser_widget = WebEngineWidget(self.service_name, self.service_url)
+            if self.browser_placeholder.get_parent():
+                self.browser_container.remove(self.browser_placeholder)
             
-            browser_layout = self.browser_container.layout()
-            browser_layout.removeWidget(self.browser_placeholder)
-            self.browser_placeholder.hide()
-            browser_layout.addWidget(self.browser_widget)
+            drawing_area = Gtk.DrawingArea()
+            drawing_area.set_size_request(400, 300)
+            drawing_area.realize()
+            self.browser_container.add(drawing_area)
+            drawing_area.show()
+            
+            self.browser_widget = CEFBrowserWidget(self.service_name, self.service_url, drawing_area)
             
             self.session_active = True
-            self.start_button.setText("Stop Session")
-            self.start_button.clicked.disconnect()
-            self.start_button.clicked.connect(self.stop_session)
-            self.scrape_button.setEnabled(True)
-            self.status_label.setText("Session Active")
-            self.status_label.setStyleSheet("color: blue;")
+            self.start_button.set_label("Stop Session")
+            self.start_button.disconnect_by_func(self.start_session)
+            self.start_button.connect("clicked", self.stop_session)
+            self.scrape_button.set_sensitive(True)
+            self.status_label.set_markup('<span color="blue">Session Active</span>')
             
             try:
                 response = requests.post('http://localhost:8000/start_session', 
@@ -129,26 +136,25 @@ class AIPanel(QWidget):
             except Exception as e:
                 print(f"Failed to start backend session for {self.service_name}: {e}")
                 
-    def stop_session(self):
+    def stop_session(self, button):
         if self.session_active:
             if self.browser_widget:
-                browser_layout = self.browser_container.layout()
-                browser_layout.removeWidget(self.browser_widget)
-                self.browser_widget.deleteLater()
+                for child in self.browser_container.get_children():
+                    if child != self.browser_placeholder:
+                        self.browser_container.remove(child)
                 self.browser_widget = None
                 
+                self.browser_container.add(self.browser_placeholder)
                 self.browser_placeholder.show()
-                browser_layout.addWidget(self.browser_placeholder)
                 
             self.session_active = False
-            self.start_button.setText("Start Session")
-            self.start_button.clicked.disconnect()
-            self.start_button.clicked.connect(self.start_session)
-            self.scrape_button.setEnabled(False)
-            self.status_label.setText("Active")
-            self.status_label.setStyleSheet("color: green;")
+            self.start_button.set_label("Start Session")
+            self.start_button.disconnect_by_func(self.stop_session)
+            self.start_button.connect("clicked", self.start_session)
+            self.scrape_button.set_sensitive(False)
+            self.status_label.set_markup('<span color="green">Active</span>')
             
-    def scrape_data(self):
+    def scrape_data(self, button):
         if self.session_active:
             try:
                 response = requests.post('http://localhost:8000/scrape_data', 
@@ -168,10 +174,8 @@ class AIPanel(QWidget):
             except Exception as e:
                 print(f"Failed to send message to {self.service_name}: {e}")
 
-class MainWindow(QMainWindow):
+class MainWindow:
     def __init__(self):
-        super(MainWindow, self).__init__()
-        
         self.ai_services = {
             'chatgpt': {
                 'name': 'ChatGPT',
@@ -196,23 +200,29 @@ class MainWindow(QMainWindow):
         }
         
         self.panels = {}
-        self.setupUI()
+        self.setup_ui()
         
-    def setupUI(self):
-        self.setWindowTitle("Multi-AI Chatbot Manager")
-        self.setGeometry(100, 100, 1200, 800)
+    def setup_ui(self):
+        self.window = Gtk.Window()
+        self.window.set_title("Multi-AI Chatbot Manager")
+        self.window.set_default_size(1200, 800)
+        self.window.connect("destroy", self.on_destroy)
         
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        main_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        main_box.set_margin_left(10)
+        main_box.set_margin_right(10)
+        main_box.set_margin_top(10)
+        main_box.set_margin_bottom(10)
         
-        main_layout = QVBoxLayout()
+        title_label = Gtk.Label(label="Multi-AI Chatbot Management Platform")
+        title_label.set_markup('<span size="large" weight="bold">Multi-AI Chatbot Management Platform</span>')
+        title_label.set_halign(Gtk.Align.CENTER)
         
-        title_label = QLabel("Multi-AI Chatbot Management Platform")
-        title_label.setFont(QFont("Arial", 16, QFont.Bold))
-        title_label.setAlignment(Qt.AlignCenter)
-        title_label.setStyleSheet("margin: 10px; padding: 10px; background-color: #f0f0f0;")
-        
-        panels_layout = QGridLayout()
+        panels_grid = Gtk.Grid()
+        panels_grid.set_row_spacing(10)
+        panels_grid.set_column_spacing(10)
+        panels_grid.set_column_homogeneous(True)
+        panels_grid.set_row_homogeneous(True)
         
         service_ids = list(self.ai_services.keys())
         for i, service_id in enumerate(service_ids):
@@ -222,66 +232,74 @@ class MainWindow(QMainWindow):
             
             row = i // 2
             col = i % 2
-            panels_layout.addWidget(panel, row, col)
+            panels_grid.attach(panel.panel_box, col, row, 1, 1)
             
-        controls_layout = QVBoxLayout()
+        controls_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         
-        ask_all_layout = QHBoxLayout()
-        ask_all_label = QLabel("Ask All Active AIs:")
-        ask_all_label.setFont(QFont("Arial", 12, QFont.Bold))
+        ask_all_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        ask_all_label = Gtk.Label(label="Ask All Active AIs:")
+        ask_all_label.set_markup('<span weight="bold">Ask All Active AIs:</span>')
         
-        self.message_input = QLineEdit()
-        self.message_input.setPlaceholderText("Enter your message here...")
-        self.message_input.returnPressed.connect(self.send_to_all)
+        self.message_entry = Gtk.Entry()
+        self.message_entry.set_placeholder_text("Enter your message here...")
+        self.message_entry.connect("activate", self.send_to_all)
         
-        send_button = QPushButton("Send to All")
-        send_button.clicked.connect(self.send_to_all)
+        send_button = Gtk.Button(label="Send to All")
+        send_button.connect("clicked", self.send_to_all)
         
-        ask_all_layout.addWidget(ask_all_label)
-        ask_all_layout.addWidget(self.message_input)
-        ask_all_layout.addWidget(send_button)
+        ask_all_box.pack_start(ask_all_label, False, False, 0)
+        ask_all_box.pack_start(self.message_entry, True, True, 0)
+        ask_all_box.pack_start(send_button, False, False, 0)
         
-        scrape_all_layout = QHBoxLayout()
-        scrape_all_button = QPushButton("Scrape All Active")
-        scrape_all_button.clicked.connect(self.scrape_all)
-        scrape_all_layout.addWidget(scrape_all_button)
-        scrape_all_layout.addStretch()
+        scrape_all_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10)
+        scrape_all_button = Gtk.Button(label="Scrape All Active")
+        scrape_all_button.connect("clicked", self.scrape_all)
+        scrape_all_box.pack_start(scrape_all_button, False, False, 0)
         
-        controls_layout.addLayout(ask_all_layout)
-        controls_layout.addLayout(scrape_all_layout)
+        controls_box.pack_start(ask_all_box, False, False, 0)
+        controls_box.pack_start(scrape_all_box, False, False, 0)
         
-        main_layout.addWidget(title_label)
-        main_layout.addLayout(panels_layout)
-        main_layout.addLayout(controls_layout)
+        main_box.pack_start(title_label, False, False, 0)
+        main_box.pack_start(panels_grid, True, True, 0)
+        main_box.pack_start(controls_box, False, False, 0)
         
-        central_widget.setLayout(main_layout)
+        self.window.add(main_box)
         
-    def send_to_all(self):
-        message = self.message_input.text().strip()
+    def send_to_all(self, widget):
+        message = self.message_entry.get_text().strip()
         if message:
             for panel in self.panels.values():
                 if panel.is_active and panel.session_active:
                     panel.send_message(message)
-            self.message_input.clear()
+            self.message_entry.set_text("")
             
-    def scrape_all(self):
+    def scrape_all(self, button):
         for panel in self.panels.values():
             if panel.is_active and panel.session_active:
-                panel.scrape_data()
+                panel.scrape_data(None)
                 
-    def closeEvent(self, event):
+    def on_destroy(self, widget):
         for panel in self.panels.values():
             if panel.session_active:
-                panel.stop_session()
-        event.accept()
+                panel.stop_session(None)
+        cef.Shutdown()
+        Gtk.main_quit()
 
 def main():
-    app = QApplication(sys.argv)
+    settings = cef.Settings()
+    settings.multi_threaded_message_loop = False
+    cef.Initialize(settings)
     
     window = MainWindow()
-    window.show()
+    window.window.show_all()
     
-    sys.exit(app.exec_())
+    def cef_work():
+        cef.MessageLoopWork()
+        return True
+    
+    GLib.timeout_add(10, cef_work)
+    
+    Gtk.main()
 
 if __name__ == '__main__':
     main()

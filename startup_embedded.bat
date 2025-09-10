@@ -11,7 +11,7 @@ if errorlevel 1 (
 )
 
 REM Check if required packages are installed
-python -c "import cefpython3, PyQt5" >nul 2>&1
+python -c "import cef_capi, gi" >nul 2>&1
 if errorlevel 1 (
     echo Installing required packages...
     pip install -r requirements.txt
