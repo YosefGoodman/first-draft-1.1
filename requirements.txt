@@ -4,5 +4,4 @@ sentence-transformers
 selenium
 webdriver-manager
 pywebview
-PyQt5
-PyQtWebEngine
+cef-capi-py

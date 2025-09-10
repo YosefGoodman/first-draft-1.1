@@ -8,7 +8,7 @@ if ! command -v python3 &> /dev/null; then
     exit 1
 fi
 
-python3 -c "import cefpython3, PyQt5" 2>/dev/null
+python3 -c "import cef_capi" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "Installing required packages..."
     pip install -r requirements.txt
