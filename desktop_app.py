@@ -570,5 +570,10 @@ def main():
     
     webview.start(debug=True)
 
+def main_embedded():
+    """Entry point for the embedded browser version"""
+    from desktop_app_embedded import main as embedded_main
+    embedded_main()
+
 if __name__ == '__main__':
     main()
