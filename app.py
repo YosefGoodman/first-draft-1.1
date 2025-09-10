@@ -14,6 +14,7 @@ from urllib.parse import urlparse, parse_qs
 import signal
 import sys
 import platform
+import subprocess
 from database import init_db, save_interaction, get_similar_context
 #change this path to desired location to keep scraped data.
 DEFAULT_WINDOWS_PATH = r"C:\Users\yosef\OneDrive\Desktop\Attachments"
@@ -47,6 +48,11 @@ class BrowserSession:
         try:
             print(f"Starting Playwright browser session for {self.service_name} at {self.url}")
             
+            if not self._ensure_chrome_debug():
+                print(f"Chrome remote debugging not available, falling back to manual mode")
+                self.is_active = True
+                return True
+            
             self.playwright = sync_playwright().start()
             try:
                 self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
@@ -72,6 +78,7 @@ class BrowserSession:
                     print(f"Opened new {self.service_name} tab")
                 
                 self.is_active = True
+                print(f"Successfully connected to {self.service_name} via CDP")
                 return True
                 
             except Exception as e:
@@ -84,6 +91,44 @@ class BrowserSession:
                 
         except Exception as e:
             print(f"Failed to start browser session for {self.service_name}: {e}")
+            return False
+    
+    def _ensure_chrome_debug(self):
+        """Ensure Chrome remote debugging is available"""
+        import requests
+        import subprocess
+        import time
+        
+        try:
+            response = requests.get("http://localhost:9222/json", timeout=2)
+            if response.status_code == 200:
+                print("Chrome remote debugging is already available")
+                return True
+        except:
+            pass
+        
+        try:
+            print("Attempting to launch Chrome with remote debugging...")
+            result = subprocess.run([
+                "python3", "launch_chrome_debug.py"
+            ], capture_output=True, text=True, timeout=15, cwd=os.path.dirname(__file__))
+            
+            if result.returncode == 0:
+                time.sleep(2)
+                try:
+                    response = requests.get("http://localhost:9222/json", timeout=2)
+                    return response.status_code == 200
+                except:
+                    return False
+            else:
+                print(f"Failed to launch Chrome debugging: {result.stderr}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            print("Chrome launch timed out")
+            return False
+        except Exception as e:
+            print(f"Error launching Chrome debugging: {e}")
             return False
     
     def inject_message(self, message):
