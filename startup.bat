@@ -12,9 +12,10 @@ if %errorlevel% neq 0 (
 
 echo.
 echo Starting the application server...
-echo Open your browser to http://localhost:5001 when ready
+echo Opening browser to http://localhost:5001...
 echo Press Ctrl+C to stop the server
 echo.
 
+start "" "http://localhost:5001"
 python app.py
 pause

@@ -12,8 +12,18 @@ fi
 
 echo
 echo "Starting the application server..."
-echo "Open your browser to http://localhost:5001 when ready"
+echo "Opening browser to http://localhost:5001..."
 echo "Press Ctrl+C to stop the server"
 echo
+
+if command -v xdg-open > /dev/null; then
+    xdg-open "http://localhost:5001" &
+elif command -v open > /dev/null; then
+    open "http://localhost:5001" &
+elif command -v start > /dev/null; then
+    start "http://localhost:5001" &
+else
+    echo "Could not detect browser opener. Please manually open http://localhost:5001"
+fi
 
 python app.py
