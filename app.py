@@ -22,7 +22,7 @@ import signal
 import sys
 import platform
 from database import init_db, save_interaction, get_similar_context
-
+#change this path to desired location to keep scraped data.
 DEFAULT_WINDOWS_PATH = r"C:\Users\yosef\OneDrive\Desktop\Attachments"
 DEFAULT_LINUX_PATH = "/home/ubuntu/scraped_data"
 STORAGE_PATH = os.environ.get('AI_STORAGE_PATH', DEFAULT_WINDOWS_PATH if platform.system() == 'Windows' else DEFAULT_LINUX_PATH)
