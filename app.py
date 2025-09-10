@@ -380,6 +380,85 @@ def send_message_to_ai(data):
         'scraped_file': filename if scraped_data else None
     }
 
+def consolidate_storage_files():
+    """
+    Consolidate all JSON files in storage directory into a single file and delete originals
+    """
+    try:
+        print(f"Checking for files to consolidate in: {STORAGE_PATH}")
+        
+        if not os.path.exists(STORAGE_PATH):
+            print("Storage directory doesn't exist, skipping consolidation")
+            return
+        
+        json_files = [f for f in os.listdir(STORAGE_PATH) if f.endswith('.json')]
+        
+        if len(json_files) <= 1:
+            print(f"Found {len(json_files)} JSON files, no consolidation needed")
+            return
+        
+        print(f"Found {len(json_files)} JSON files to consolidate")
+        
+        consolidated_data = {
+            'consolidation_timestamp': datetime.now().isoformat(),
+            'original_files_count': len(json_files),
+            'consolidated_files': [],
+            'all_interactions': [],
+            'all_embeddings': []
+        }
+        
+        files_to_delete = []
+        
+        for filename in json_files:
+            filepath = os.path.join(STORAGE_PATH, filename)
+            try:
+                with open(filepath, 'r', encoding='utf-8') as f:
+                    file_data = json.load(f)
+                
+                consolidated_data['consolidated_files'].append({
+                    'original_filename': filename,
+                    'file_data': file_data
+                })
+                
+                if 'chat_elements' in file_data:
+                    consolidated_data['all_interactions'].extend(file_data['chat_elements'])
+                
+                if 'embedding' in file_data:
+                    consolidated_data['all_embeddings'].append({
+                        'source_file': filename,
+                        'embedding': file_data['embedding']
+                    })
+                
+                files_to_delete.append(filepath)
+                print(f"Processed: {filename}")
+                
+            except Exception as e:
+                print(f"Error processing {filename}: {e}")
+                continue
+        
+        if not consolidated_data['consolidated_files']:
+            print("No valid files to consolidate")
+            return
+        
+        consolidated_filename = f"consolidated_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+        consolidated_filepath = os.path.join(STORAGE_PATH, consolidated_filename)
+        
+        with open(consolidated_filepath, 'w', encoding='utf-8') as f:
+            json.dump(consolidated_data, f, indent=2, ensure_ascii=False)
+        
+        for filepath in files_to_delete:
+            try:
+                os.remove(filepath)
+                print(f"Deleted: {os.path.basename(filepath)}")
+            except Exception as e:
+                print(f"Error deleting {filepath}: {e}")
+        
+        print(f"Consolidation complete! Created: {consolidated_filename}")
+        print(f"Consolidated {len(files_to_delete)} files into 1 file")
+        
+    except Exception as e:
+        print(f"Error during file consolidation: {e}")
+
 def signal_handler(sig, frame):
     print('\nShutting down browser sessions...')
     for session in browser_sessions.values():
@@ -394,6 +473,9 @@ def main():
     
     print("Initializing database...")
     init_db()
+    
+    print("Consolidating storage files...")
+    consolidate_storage_files()
     
     PORT = 5001
     print(f"Starting AI Browser Server on port {PORT}")

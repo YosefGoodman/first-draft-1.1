@@ -1,0 +1,27 @@
+{
+  "service": "chatgpt",
+  "url": "https://chatgpt.com",
+  "timestamp": "2025-09-10T02:20:30.000000",
+  "title": "chatgpt - AI Discussion Session",
+  "chat_elements": [
+    {
+      "role": "user",
+      "text": "What is machine learning?",
+      "html": "<div class='user-message'>What is machine learning?</div>"
+    },
+    {
+      "role": "assistant", 
+      "text": "Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions from data without being explicitly programmed for every task. It involves algorithms that can identify patterns, make predictions, and improve their performance over time through experience.",
+      "html": "<div class='assistant-message'>Machine learning is a subset of artificial intelligence...</div>"
+    }
+  ],
+  "full_text": "User: What is machine learning?\n\nAssistant: Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions from data without being explicitly programmed for every task. It involves algorithms that can identify patterns, make predictions, and improve their performance over time through experience.",
+  "status": "scraped_successfully",
+  "embedding": [
+    -0.06436573714017868,
+    -0.03246280923485756,
+    0.02274264208972454,
+    0.0505070804356365,
+    -0.08123456789012345
+  ]
+}
