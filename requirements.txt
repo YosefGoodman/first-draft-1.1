@@ -1,8 +1,7 @@
 requests
 beautifulsoup4
 sentence-transformers
-selenium
-webdriver-manager
+playwright
 pywebview
 PyQt5
 PyQtWebEngine

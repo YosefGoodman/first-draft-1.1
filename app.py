@@ -6,14 +6,7 @@ import threading
 import http.server
 import socketserver
 from datetime import datetime
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.common.keys import Keys
+from playwright.sync_api import sync_playwright
 import requests
 from bs4 import BeautifulSoup
 from sentence_transformers import SentenceTransformer
@@ -43,21 +36,52 @@ class BrowserSession:
     def __init__(self, service_name, url):
         self.service_name = service_name
         self.url = url
-        self.driver = None
+        self.playwright = None
+        self.browser = None
+        self.context = None
+        self.page = None
         self.is_active = False
         self.last_scraped_data = None
-        self.window_handle = None
         
     def start_session(self):
         try:
-            print(f"Starting browser session for {self.service_name} at {self.url}")
-            print(f"Note: Using window.open() approach - user will interact manually with opened tab")
+            print(f"Starting Playwright browser session for {self.service_name} at {self.url}")
             
-            self.driver = None
-            self.is_active = True
-            self.window_handle = None
-            
-            return True
+            self.playwright = sync_playwright().start()
+            try:
+                self.browser = self.playwright.chromium.connect_over_cdp("http://localhost:9222")
+                self.context = self.browser.contexts[0] if self.browser.contexts else self.browser.new_context()
+                
+                existing_pages = self.context.pages
+                target_page = None
+                
+                for page in existing_pages:
+                    try:
+                        if self.url.replace('https://', '').replace('http://', '') in page.url:
+                            target_page = page
+                            break
+                    except:
+                        continue
+                
+                if target_page:
+                    self.page = target_page
+                    print(f"Connected to existing {self.service_name} tab")
+                else:
+                    self.page = self.context.new_page()
+                    self.page.goto(self.url)
+                    print(f"Opened new {self.service_name} tab")
+                
+                self.is_active = True
+                return True
+                
+            except Exception as e:
+                print(f"Failed to connect via CDP, falling back to manual mode: {e}")
+                if self.playwright:
+                    self.playwright.stop()
+                    self.playwright = None
+                self.is_active = True
+                return True
+                
         except Exception as e:
             print(f"Failed to start browser session for {self.service_name}: {e}")
             return False
@@ -67,7 +91,7 @@ class BrowserSession:
             return False
             
         try:
-            print(f"Preparing enhanced message for {self.service_name}: {message}")
+            print(f"Injecting message into {self.service_name}: {message}")
             
             similar_context = get_similar_context("web_user", message, limit=3)
             enhanced_message = message
@@ -81,8 +105,8 @@ class BrowserSession:
                 'service': self.service_name,
                 'message': message,
                 'enhanced_message': enhanced_message,
-                'status': 'ready_for_manual_input',
-                'instructions': f'Please copy this enhanced message to the {self.service_name} tab and send it manually'
+                'status': 'automated_injection',
+                'instructions': f'Message automatically injected into {self.service_name} using Playwright'
             }
             
             filename = f"message_{self.service_name}_{timestamp.replace(':', '-')}.json"
@@ -90,6 +114,14 @@ class BrowserSession:
             
             with open(filepath, 'w') as f:
                 json.dump(interaction_data, f, indent=2)
+            
+            if self.page:
+                success = self._inject_message_by_site(enhanced_message)
+                if success:
+                    print(f"Successfully injected message into {self.service_name}")
+                    return True
+                else:
+                    print(f"Playwright injection failed, falling back to manual mode")
             
             print(f"Enhanced message saved to: {filepath}")
             print(f"Enhanced message: {enhanced_message}")
@@ -101,33 +133,162 @@ class BrowserSession:
             return False
     
     def _inject_message_by_site(self, message):
-        print(f"Manual message injection for {self.service_name}: User should copy the enhanced message to the browser tab")
-        return True
+        if not self.page:
+            print(f"No page available for {self.service_name}, falling back to manual mode")
+            return False
+            
+        try:
+            selectors = self._get_textarea_selectors()
+            
+            for selector in selectors:
+                try:
+                    element = self.page.query_selector(selector)
+                    if element:
+                        print(f"Found textarea using selector: {selector}")
+                        
+                        element.click()
+                        element.fill("")
+                        element.type(message)
+                        
+                        self.page.keyboard.press("Enter")
+                        
+                        print(f"Successfully typed and sent message to {self.service_name}")
+                        return True
+                        
+                except Exception as e:
+                    print(f"Failed with selector {selector}: {e}")
+                    continue
+            
+            print(f"Could not find suitable textarea for {self.service_name}")
+            return False
+            
+        except Exception as e:
+            print(f"Error during message injection for {self.service_name}: {e}")
+            return False
+    
+    def _get_textarea_selectors(self):
+        selectors_map = {
+            'chatgpt': [
+                'textarea[data-id]',
+                '#prompt-textarea', 
+                'textarea',
+                'div[contenteditable="true"]'
+            ],
+            'claude': [
+                'div[contenteditable="true"]',
+                'textarea',
+                'input[type="text"]'
+            ],
+            'mistral': [
+                'textarea',
+                'input[type="text"]',
+                'div[contenteditable="true"]'
+            ],
+            'gemini': [
+                'textarea',
+                'div[contenteditable="true"]',
+                'input[type="text"]'
+            ]
+        }
+        
+        return selectors_map.get(self.service_name, ['textarea', 'div[contenteditable="true"]', 'input[type="text"]'])
     
     def scrape_current_data(self):
         if not self.is_active:
             return None
             
         try:
-            print(f"Scraping simulation for {self.service_name} - user should manually copy conversation data")
-            
             timestamp = datetime.now().isoformat()
-            scraped_data = {
-                'service': self.service_name,
-                'url': self.url,
-                'timestamp': timestamp,
-                'title': f'{self.service_name} - Manual Chat Session',
-                'chat_elements': [
-                    {
-                        'role': 'system',
-                        'text': f'Manual scraping placeholder for {self.service_name}. User should copy actual conversation data.',
-                        'html': '<div>Manual scraping placeholder</div>'
+            
+            if self.page:
+                try:
+                    page_title = self.page.title()
+                    page_content = self.page.content()
+                    
+                    chat_elements = []
+                    
+                    message_selectors = [
+                        '[data-message-author-role]',
+                        '.message',
+                        '[role="presentation"]',
+                        '.conversation-turn',
+                        '.chat-message'
+                    ]
+                    
+                    for selector in message_selectors:
+                        try:
+                            elements = self.page.query_selector_all(selector)
+                            if elements:
+                                for i, element in enumerate(elements[-10:]):
+                                    try:
+                                        text = element.inner_text()
+                                        if text.strip():
+                                            chat_elements.append({
+                                                'role': 'message',
+                                                'text': text.strip(),
+                                                'html': element.inner_html()
+                                            })
+                                    except:
+                                        continue
+                                break
+                        except:
+                            continue
+                    
+                    if not chat_elements:
+                        chat_elements = [{
+                            'role': 'system',
+                            'text': f'Automated scraping for {self.service_name}. Page content extracted.',
+                            'html': '<div>Automated scraping</div>'
+                        }]
+                    
+                    full_text = ' '.join([elem['text'] for elem in chat_elements])
+                    
+                    scraped_data = {
+                        'service': self.service_name,
+                        'url': self.url,
+                        'timestamp': timestamp,
+                        'title': page_title or f'{self.service_name} - Automated Chat Session',
+                        'chat_elements': chat_elements,
+                        'full_text': full_text,
+                        'status': 'automated_scraping_complete',
+                        'instructions': f'Data automatically scraped from {self.service_name} using Playwright'
                     }
-                ],
-                'full_text': f'Manual scraping session for {self.service_name}. Please copy actual conversation data from the browser tab.',
-                'status': 'manual_scraping_required',
-                'instructions': f'Please manually copy conversation data from the {self.service_name} browser tab'
-            }
+                    
+                except Exception as e:
+                    print(f"Playwright scraping failed for {self.service_name}: {e}")
+                    scraped_data = {
+                        'service': self.service_name,
+                        'url': self.url,
+                        'timestamp': timestamp,
+                        'title': f'{self.service_name} - Fallback Session',
+                        'chat_elements': [
+                            {
+                                'role': 'system',
+                                'text': f'Fallback scraping for {self.service_name}. Playwright scraping failed.',
+                                'html': '<div>Fallback scraping</div>'
+                            }
+                        ],
+                        'full_text': f'Fallback scraping session for {self.service_name}.',
+                        'status': 'fallback_scraping',
+                        'instructions': f'Playwright scraping failed for {self.service_name}'
+                    }
+            else:
+                scraped_data = {
+                    'service': self.service_name,
+                    'url': self.url,
+                    'timestamp': timestamp,
+                    'title': f'{self.service_name} - Manual Chat Session',
+                    'chat_elements': [
+                        {
+                            'role': 'system',
+                            'text': f'Manual scraping placeholder for {self.service_name}. User should copy actual conversation data.',
+                            'html': '<div>Manual scraping placeholder</div>'
+                        }
+                    ],
+                    'full_text': f'Manual scraping session for {self.service_name}. Please copy actual conversation data from the browser tab.',
+                    'status': 'manual_scraping_required',
+                    'instructions': f'Please manually copy conversation data from the {self.service_name} browser tab'
+                }
             
             model = get_embedding_model()
             embedding = model.encode(scraped_data['full_text'])
@@ -137,7 +298,7 @@ class BrowserSession:
             return scraped_data
             
         except Exception as e:
-            print(f"Failed to create scraping placeholder for {self.service_name}: {e}")
+            print(f"Failed to scrape data for {self.service_name}: {e}")
             return None
     
     def _scrape_by_site(self):
@@ -145,12 +306,31 @@ class BrowserSession:
         return None
     
     def close_session(self):
-        if self.driver:
-            print(f"Closing browser session for {self.service_name}")
-            self.driver.quit()
-            self.driver = None
+        try:
+            if self.page:
+                print(f"Closing Playwright page for {self.service_name}")
+                self.page.close()
+                self.page = None
+            
+            if self.context:
+                print(f"Closing Playwright context for {self.service_name}")
+                self.context.close()
+                self.context = None
+            
+            if self.browser:
+                print(f"Closing Playwright browser for {self.service_name}")
+                self.browser.close()
+                self.browser = None
+                
+            if self.playwright:
+                print(f"Stopping Playwright for {self.service_name}")
+                self.playwright.stop()
+                self.playwright = None
+                
+        except Exception as e:
+            print(f"Error closing session for {self.service_name}: {e}")
+        
         self.is_active = False
-        self.window_handle = None
 
 class AIBrowserHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
