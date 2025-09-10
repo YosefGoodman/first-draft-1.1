@@ -20,8 +20,12 @@ from sentence_transformers import SentenceTransformer
 from urllib.parse import urlparse, parse_qs
 import signal
 import sys
+import platform
+from database import init_db, save_interaction, get_similar_context
 
-STORAGE_PATH = "/home/ubuntu/scraped_data"
+DEFAULT_WINDOWS_PATH = r"C:\Users\yosef\OneDrive\Desktop\Attachments"
+DEFAULT_LINUX_PATH = "/home/ubuntu/scraped_data"
+STORAGE_PATH = os.environ.get('AI_STORAGE_PATH', DEFAULT_WINDOWS_PATH if platform.system() == 'Windows' else DEFAULT_LINUX_PATH)
 if not os.path.exists(STORAGE_PATH):
     os.makedirs(STORAGE_PATH)
 
@@ -42,12 +46,17 @@ class BrowserSession:
         self.driver = None
         self.is_active = False
         self.last_scraped_data = None
+        self.window_handle = None
         
     def start_session(self):
         try:
-            print(f"Starting simulated browser session for {self.service_name} at {self.url}")
-            self.driver = "simulated_driver"  # Simulate driver object
+            print(f"Starting browser session for {self.service_name} at {self.url}")
+            print(f"Note: Using window.open() approach - user will interact manually with opened tab")
+            
+            self.driver = None
             self.is_active = True
+            self.window_handle = None
+            
             return True
         except Exception as e:
             print(f"Failed to start browser session for {self.service_name}: {e}")
@@ -58,15 +67,22 @@ class BrowserSession:
             return False
             
         try:
-            print(f"Simulating message injection to {self.service_name}: {message}")
+            print(f"Preparing enhanced message for {self.service_name}: {message}")
+            
+            similar_context = get_similar_context("web_user", message, limit=3)
+            enhanced_message = message
+            if similar_context:
+                context_text = "\n".join(similar_context)
+                enhanced_message = f"Context from previous conversations:\n{context_text}\n\nCurrent question: {message}"
             
             timestamp = datetime.now().isoformat()
             interaction_data = {
                 'timestamp': timestamp,
                 'service': self.service_name,
                 'message': message,
-                'response': f"Simulated response from {self.service_name}",
-                'status': 'simulated_success'
+                'enhanced_message': enhanced_message,
+                'status': 'ready_for_manual_input',
+                'instructions': f'Please copy this enhanced message to the {self.service_name} tab and send it manually'
             }
             
             filename = f"message_{self.service_name}_{timestamp.replace(':', '-')}.json"
@@ -75,53 +91,66 @@ class BrowserSession:
             with open(filepath, 'w') as f:
                 json.dump(interaction_data, f, indent=2)
             
+            print(f"Enhanced message saved to: {filepath}")
+            print(f"Enhanced message: {enhanced_message}")
+            
             return True
             
         except Exception as e:
             print(f"Failed to inject message into {self.service_name}: {e}")
             return False
     
+    def _inject_message_by_site(self, message):
+        print(f"Manual message injection for {self.service_name}: User should copy the enhanced message to the browser tab")
+        return True
+    
     def scrape_current_data(self):
         if not self.is_active:
             return None
             
         try:
-            print(f"Simulating data scraping from {self.service_name}")
+            print(f"Scraping simulation for {self.service_name} - user should manually copy conversation data")
             
-            simulated_content = f"Simulated scraped content from {self.service_name} at {datetime.now()}"
-            
+            timestamp = datetime.now().isoformat()
             scraped_data = {
                 'service': self.service_name,
                 'url': self.url,
-                'timestamp': datetime.now().isoformat(),
-                'title': f'{self.service_name} - Simulated Chat',
+                'timestamp': timestamp,
+                'title': f'{self.service_name} - Manual Chat Session',
                 'chat_elements': [
                     {
-                        'selector': '.message',
-                        'text': f'Sample message from {self.service_name}',
-                        'html': f'<div class="message">Sample message from {self.service_name}</div>'
+                        'role': 'system',
+                        'text': f'Manual scraping placeholder for {self.service_name}. User should copy actual conversation data.',
+                        'html': '<div>Manual scraping placeholder</div>'
                     }
                 ],
-                'full_text': simulated_content,
-                'status': 'simulated'
+                'full_text': f'Manual scraping session for {self.service_name}. Please copy actual conversation data from the browser tab.',
+                'status': 'manual_scraping_required',
+                'instructions': f'Please manually copy conversation data from the {self.service_name} browser tab'
             }
             
             model = get_embedding_model()
-            embedding = model.encode(simulated_content)
+            embedding = model.encode(scraped_data['full_text'])
             scraped_data['embedding'] = embedding.tolist()
             
             self.last_scraped_data = scraped_data
             return scraped_data
             
         except Exception as e:
-            print(f"Failed to scrape data from {self.service_name}: {e}")
+            print(f"Failed to create scraping placeholder for {self.service_name}: {e}")
             return None
     
+    def _scrape_by_site(self):
+        print(f"Manual scraping placeholder for {self.service_name}")
+        return None
+    
     def close_session(self):
-        if self.is_active:
-            print(f"Closing simulated session for {self.service_name}")
-            self.is_active = False
+        if self.driver:
+            print(f"Closing browser session for {self.service_name}")
+            self.driver.quit()
             self.driver = None
+        self.is_active = False
+        self.window_handle = None
 
 class AIBrowserHandler(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
@@ -325,7 +354,7 @@ def send_message_to_ai(data):
     if not success:
         return {'error': 'Failed to send message'}
     
-    time.sleep(3)
+    time.sleep(5)
     
     scraped_data = session.scrape_current_data()
     if scraped_data:
@@ -334,6 +363,10 @@ def send_message_to_ai(data):
         
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(scraped_data, f, indent=2, ensure_ascii=False)
+        
+        if scraped_data['chat_elements']:
+            latest_response = scraped_data['chat_elements'][-1]['text']
+            save_interaction("web_user", message, latest_response)
     
     latest_response = ""
     if scraped_data and scraped_data['chat_elements']:
@@ -358,6 +391,9 @@ def signal_handler(sig, frame):
 def main():
     global server
     signal.signal(signal.SIGINT, signal_handler)
+    
+    print("Initializing database...")
+    init_db()
     
     PORT = 5001
     print(f"Starting AI Browser Server on port {PORT}")

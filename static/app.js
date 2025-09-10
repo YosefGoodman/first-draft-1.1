@@ -5,6 +5,10 @@ class ChatApp {
         this.panels = new Map();
         this.compatibilityResults = null;
         this.init();
+        
+        window.addEventListener('beforeunload', () => {
+            this.closeAllWindows();
+        });
     }
 
     init() {
@@ -119,6 +123,14 @@ class ChatApp {
             await panel.scrapeData();
         }
     }
+    
+    closeAllWindows() {
+        this.panels.forEach(panel => {
+            if (panel.aiWindow && !panel.aiWindow.closed) {
+                panel.aiWindow.close();
+            }
+        });
+    }
 }
 
 class AIPanel {
@@ -131,6 +143,7 @@ class AIPanel {
         this.isConnected = false;
         this.sessionActive = false;
         this.messages = [];
+        this.aiWindow = null;
         
         this.initElements();
         this.initEventListeners();
@@ -222,6 +235,8 @@ class AIPanel {
         this.startSessionBtn.disabled = true;
 
         try {
+            const aiWindow = window.open(this.url, `${this.model}_tab`, 'width=1200,height=800,scrollbars=yes,resizable=yes');
+            
             const response = await fetch(`${this.app.baseUrl}/start_browser_session`, {
                 method: 'POST',
                 headers: {
@@ -237,8 +252,10 @@ class AIPanel {
             
             if (result.success) {
                 this.sessionActive = true;
-                this.addPreviewMessage('System', 'Browser session started. You can now login and start chatting.');
+                this.aiWindow = aiWindow;
+                this.addPreviewMessage('System', `Browser session started. AI site opened in new tab. Please login and start chatting.`);
             } else {
+                if (aiWindow) aiWindow.close();
                 throw new Error(result.error || 'Failed to start session');
             }
         } catch (error) {
@@ -296,7 +313,11 @@ class AIPanel {
 
     refreshSession() {
         if (this.sessionActive) {
+            if (this.aiWindow && !this.aiWindow.closed) {
+                this.aiWindow.close();
+            }
             this.sessionActive = false;
+            this.aiWindow = null;
             this.updateUI();
             this.startBrowserSession();
         }
