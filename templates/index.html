@@ -16,37 +16,45 @@
         
         <main class="main-content">
             <div class="panels-container">
-                <div class="ai-panel" data-model="openai">
+                <div class="ai-panel" data-model="chatgpt" data-url="https://chatgpt.com">
                     <div class="panel-header">
                         <label class="panel-checkbox">
                             <input type="checkbox" checked>
                             <span class="checkmark"></span>
                         </label>
                         <span class="material-icons panel-icon">chat</span>
-                        <span class="panel-title">OpenAI</span>
-                        <div class="connection-status connected">Connected</div>
+                        <span class="panel-title">ChatGPT</span>
+                        <div class="connection-status connected">Ready</div>
                     </div>
-                    <div class="messages-container">
-                        <div class="empty-state">
-                            <span class="material-icons">chat_bubble_outline</span>
-                            <span>No messages yet</span>
+                    <div class="browser-container">
+                        <div class="browser-status">
+                            <div class="status-indicator disconnected"></div>
+                            <span class="status-text">Not Connected</span>
+                            <button class="start-session-btn">Start Session</button>
+                        </div>
+                        <div class="chat-preview">
+                            <div class="preview-messages"></div>
+                            <div class="preview-input">
+                                <input type="text" placeholder="Type message for ChatGPT..." disabled>
+                                <button class="send-individual-btn" disabled>
+                                    <span class="material-icons">send</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="input-container">
-                        <div class="input-row">
-                            <input type="text" class="message-input" placeholder="Type your message..." disabled>
-                            <button class="send-button" disabled>
-                                <span class="material-icons">send</span>
-                            </button>
-                        </div>
-                        <button class="copy-button" disabled>
-                            <span class="material-icons">content_copy</span>
-                            Copy Response
+                    <div class="panel-controls">
+                        <button class="scrape-button">
+                            <span class="material-icons">download</span>
+                            Scrape Data
+                        </button>
+                        <button class="refresh-button">
+                            <span class="material-icons">refresh</span>
+                            Refresh
                         </button>
                     </div>
                 </div>
 
-                <div class="ai-panel" data-model="mistral">
+                <div class="ai-panel" data-model="mistral" data-url="https://chat.mistral.ai/chat">
                     <div class="panel-header">
                         <label class="panel-checkbox">
                             <input type="checkbox">
@@ -54,59 +62,37 @@
                         </label>
                         <span class="material-icons panel-icon">psychology</span>
                         <span class="panel-title">Mistral</span>
-                        <div class="connection-status connected">Connected</div>
+                        <div class="connection-status connected">Ready</div>
                     </div>
-                    <div class="messages-container">
-                        <div class="empty-state">
-                            <span class="material-icons">chat_bubble_outline</span>
-                            <span>No messages yet</span>
+                    <div class="browser-container">
+                        <div class="browser-status">
+                            <div class="status-indicator disconnected"></div>
+                            <span class="status-text">Not Connected</span>
+                            <button class="start-session-btn">Start Session</button>
+                        </div>
+                        <div class="chat-preview">
+                            <div class="preview-messages"></div>
+                            <div class="preview-input">
+                                <input type="text" placeholder="Type message for Mistral..." disabled>
+                                <button class="send-individual-btn" disabled>
+                                    <span class="material-icons">send</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="input-container">
-                        <div class="input-row">
-                            <input type="text" class="message-input" placeholder="Panel disabled" disabled>
-                            <button class="send-button" disabled>
-                                <span class="material-icons">send</span>
-                            </button>
-                        </div>
-                        <button class="copy-button" disabled>
-                            <span class="material-icons">content_copy</span>
-                            Copy Response
+                    <div class="panel-controls">
+                        <button class="scrape-button">
+                            <span class="material-icons">download</span>
+                            Scrape Data
+                        </button>
+                        <button class="refresh-button">
+                            <span class="material-icons">refresh</span>
+                            Refresh
                         </button>
                     </div>
                 </div>
 
-                <div class="ai-panel" data-model="llama">
-                    <div class="panel-header">
-                        <label class="panel-checkbox">
-                            <input type="checkbox">
-                            <span class="checkmark"></span>
-                        </label>
-                        <span class="material-icons panel-icon">smart_toy</span>
-                        <span class="panel-title">LLaMA</span>
-                        <div class="connection-status connected">Connected</div>
-                    </div>
-                    <div class="messages-container">
-                        <div class="empty-state">
-                            <span class="material-icons">chat_bubble_outline</span>
-                            <span>No messages yet</span>
-                        </div>
-                    </div>
-                    <div class="input-container">
-                        <div class="input-row">
-                            <input type="text" class="message-input" placeholder="Panel disabled" disabled>
-                            <button class="send-button" disabled>
-                                <span class="material-icons">send</span>
-                            </button>
-                        </div>
-                        <button class="copy-button" disabled>
-                            <span class="material-icons">content_copy</span>
-                            Copy Response
-                        </button>
-                    </div>
-                </div>
-
-                <div class="ai-panel" data-model="claude">
+                <div class="ai-panel" data-model="claude" data-url="https://claude.ai/new">
                     <div class="panel-header">
                         <label class="panel-checkbox">
                             <input type="checkbox">
@@ -114,40 +100,96 @@
                         </label>
                         <span class="material-icons panel-icon">assistant</span>
                         <span class="panel-title">Claude</span>
-                        <div class="connection-status connected">Connected</div>
+                        <div class="connection-status connected">Ready</div>
                     </div>
-                    <div class="messages-container">
-                        <div class="empty-state">
-                            <span class="material-icons">chat_bubble_outline</span>
-                            <span>No messages yet</span>
+                    <div class="browser-container">
+                        <div class="browser-status">
+                            <div class="status-indicator disconnected"></div>
+                            <span class="status-text">Not Connected</span>
+                            <button class="start-session-btn">Start Session</button>
+                        </div>
+                        <div class="chat-preview">
+                            <div class="preview-messages"></div>
+                            <div class="preview-input">
+                                <input type="text" placeholder="Type message for Claude..." disabled>
+                                <button class="send-individual-btn" disabled>
+                                    <span class="material-icons">send</span>
+                                </button>
+                            </div>
                         </div>
                     </div>
-                    <div class="input-container">
-                        <div class="input-row">
-                            <input type="text" class="message-input" placeholder="Panel disabled" disabled>
-                            <button class="send-button" disabled>
-                                <span class="material-icons">send</span>
-                            </button>
+                    <div class="panel-controls">
+                        <button class="scrape-button">
+                            <span class="material-icons">download</span>
+                            Scrape Data
+                        </button>
+                        <button class="refresh-button">
+                            <span class="material-icons">refresh</span>
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="ai-panel" data-model="gemini" data-url="https://gemini.google.com">
+                    <div class="panel-header">
+                        <label class="panel-checkbox">
+                            <input type="checkbox">
+                            <span class="checkmark"></span>
+                        </label>
+                        <span class="material-icons panel-icon">auto_awesome</span>
+                        <span class="panel-title">Gemini</span>
+                        <div class="connection-status connected">Ready</div>
+                    </div>
+                    <div class="browser-container">
+                        <div class="browser-status">
+                            <div class="status-indicator disconnected"></div>
+                            <span class="status-text">Not Connected</span>
+                            <button class="start-session-btn">Start Session</button>
                         </div>
-                        <button class="copy-button" disabled>
-                            <span class="material-icons">content_copy</span>
-                            Copy Response
+                        <div class="chat-preview">
+                            <div class="preview-messages"></div>
+                            <div class="preview-input">
+                                <input type="text" placeholder="Type message for Gemini..." disabled>
+                                <button class="send-individual-btn" disabled>
+                                    <span class="material-icons">send</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="panel-controls">
+                        <button class="scrape-button">
+                            <span class="material-icons">download</span>
+                            Scrape Data
+                        </button>
+                        <button class="refresh-button">
+                            <span class="material-icons">refresh</span>
+                            Refresh
                         </button>
                     </div>
                 </div>
             </div>
 
             <div class="ask-all-section">
-                <h3>Ask All Enabled Models</h3>
+                <h3>Message Active AI Panels</h3>
                 <div class="ask-all-input">
-                    <input type="text" id="ask-all-input" placeholder="Type a question to send to all enabled models...">
+                    <input type="text" id="ask-all-input" placeholder="Type a message to send to all enabled AI panels...">
                     <button id="ask-all-button">
                         <span class="material-icons">send</span>
                     </button>
                 </div>
                 <div class="ask-all-loading" style="display: none;">
                     <div class="loading-spinner"></div>
-                    <span>Sending to all enabled models...</span>
+                    <span>Sending to active panels...</span>
+                </div>
+                <div class="scraping-controls">
+                    <button id="scrape-all-button">
+                        <span class="material-icons">download</span>
+                        Scrape All Active Panels
+                    </button>
+                    <button id="test-compatibility-button">
+                        <span class="material-icons">bug_report</span>
+                        Test Iframe Compatibility
+                    </button>
                 </div>
             </div>
         </main>

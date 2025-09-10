@@ -3,13 +3,16 @@ class ChatApp {
         this.baseUrl = 'http://localhost:5001';
         this.userId = 'web_user';
         this.panels = new Map();
+        this.compatibilityResults = null;
         this.init();
     }
 
     init() {
         this.initPanels();
         this.initAskAll();
+        this.initScrapingControls();
         this.checkHealth();
+        this.testIframeCompatibility();
     }
 
     initPanels() {
@@ -31,7 +34,10 @@ class ChatApp {
             if (!message) return;
 
             const enabledPanels = Array.from(this.panels.values()).filter(panel => panel.isEnabled);
-            if (enabledPanels.length === 0) return;
+            if (enabledPanels.length === 0) {
+                alert('No panels are enabled. Please enable at least one AI panel.');
+                return;
+            }
 
             input.disabled = true;
             button.disabled = true;
@@ -39,19 +45,32 @@ class ChatApp {
             input.value = '';
 
             enabledPanels.forEach(panel => {
-                panel.sendMessage(message);
+                panel.injectMessage(message);
             });
 
             setTimeout(() => {
                 input.disabled = false;
                 button.disabled = false;
                 loading.style.display = 'none';
-            }, 2000);
+            }, 3000);
         };
 
         button.addEventListener('click', sendToAll);
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') sendToAll();
+        });
+    }
+
+    initScrapingControls() {
+        const scrapeAllButton = document.getElementById('scrape-all-button');
+        const testCompatibilityButton = document.getElementById('test-compatibility-button');
+
+        scrapeAllButton.addEventListener('click', () => {
+            this.scrapeAllActivePanels();
+        });
+
+        testCompatibilityButton.addEventListener('click', () => {
+            this.testIframeCompatibility();
         });
     }
 
@@ -71,24 +90,34 @@ class ChatApp {
         });
     }
 
-    async sendMessage(userId, message, model) {
-        const response = await fetch(`${this.baseUrl}/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                user_id: userId,
-                message: message,
-                model: model,
-            }),
-        });
+    async testIframeCompatibility() {
+        try {
+            const response = await fetch(`${this.baseUrl}/get_browser_sessions`);
+            const sessions = await response.json();
+            console.log('Browser sessions status:', sessions);
+            
+            this.panels.forEach(panel => {
+                const sessionInfo = sessions[panel.model];
+                if (sessionInfo && sessionInfo.is_active) {
+                    panel.sessionActive = true;
+                    panel.updateUI();
+                }
+            });
+        } catch (error) {
+            console.error('Failed to check browser sessions:', error);
+        }
+    }
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+    async scrapeAllActivePanels() {
+        const enabledPanels = Array.from(this.panels.values()).filter(panel => panel.isEnabled);
+        if (enabledPanels.length === 0) {
+            alert('No panels are enabled. Please enable at least one AI panel.');
+            return;
         }
 
-        return await response.json();
+        for (const panel of enabledPanels) {
+            await panel.scrapeData();
+        }
     }
 }
 
@@ -97,8 +126,10 @@ class AIPanel {
         this.element = element;
         this.model = model;
         this.app = app;
+        this.url = element.dataset.url;
         this.isEnabled = false;
         this.isConnected = false;
+        this.sessionActive = false;
         this.messages = [];
         
         this.initElements();
@@ -108,10 +139,14 @@ class AIPanel {
 
     initElements() {
         this.checkbox = this.element.querySelector('input[type="checkbox"]');
-        this.messagesContainer = this.element.querySelector('.messages-container');
-        this.messageInput = this.element.querySelector('.message-input');
-        this.sendButton = this.element.querySelector('.send-button');
-        this.copyButton = this.element.querySelector('.copy-button');
+        this.statusIndicator = this.element.querySelector('.status-indicator');
+        this.statusText = this.element.querySelector('.status-text');
+        this.startSessionBtn = this.element.querySelector('.start-session-btn');
+        this.previewMessages = this.element.querySelector('.preview-messages');
+        this.previewInput = this.element.querySelector('.preview-input input');
+        this.sendIndividualBtn = this.element.querySelector('.send-individual-btn');
+        this.scrapeButton = this.element.querySelector('.scrape-button');
+        this.refreshButton = this.element.querySelector('.refresh-button');
         this.connectionStatus = this.element.querySelector('.connection-status');
         
         this.isEnabled = this.checkbox.checked;
@@ -123,170 +158,231 @@ class AIPanel {
             this.updateUI();
         });
 
-        this.sendButton.addEventListener('click', () => {
-            this.sendMessage();
+        this.startSessionBtn.addEventListener('click', () => {
+            this.startBrowserSession();
         });
 
-        this.messageInput.addEventListener('keypress', (e) => {
+        this.sendIndividualBtn.addEventListener('click', () => {
+            this.sendIndividualMessage();
+        });
+
+        this.previewInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                this.sendMessage();
+                this.sendIndividualMessage();
             }
         });
 
-        this.copyButton.addEventListener('click', () => {
-            this.copyLastResponse();
+        this.scrapeButton.addEventListener('click', () => {
+            this.scrapeData();
+        });
+
+        this.refreshButton.addEventListener('click', () => {
+            this.refreshSession();
         });
     }
 
     updateUI() {
         if (this.isEnabled) {
             this.element.classList.remove('disabled');
-            this.messageInput.placeholder = 'Type your message...';
-            this.messageInput.disabled = !this.isConnected;
-            this.sendButton.disabled = !this.isConnected;
         } else {
             this.element.classList.add('disabled');
-            this.messageInput.placeholder = 'Panel disabled';
-            this.messageInput.disabled = true;
-            this.sendButton.disabled = true;
         }
 
-        this.copyButton.disabled = !this.isEnabled || this.messages.length === 0;
+        this.startSessionBtn.disabled = !this.isEnabled || this.sessionActive;
+        this.previewInput.disabled = !this.isEnabled || !this.sessionActive;
+        this.sendIndividualBtn.disabled = !this.isEnabled || !this.sessionActive;
+        this.scrapeButton.disabled = !this.isEnabled || !this.sessionActive;
+        this.refreshButton.disabled = !this.isEnabled;
+        
+        if (this.sessionActive) {
+            this.statusIndicator.className = 'status-indicator connected';
+            this.statusText.textContent = 'Connected';
+            this.startSessionBtn.textContent = 'Active';
+        } else {
+            this.statusIndicator.className = 'status-indicator disconnected';
+            this.statusText.textContent = 'Not Connected';
+            this.startSessionBtn.textContent = 'Start Session';
+        }
     }
 
     updateConnectionStatus(isConnected) {
         this.isConnected = isConnected;
-        this.connectionStatus.textContent = isConnected ? 'Connected' : 'Disconnected';
-        this.connectionStatus.className = `connection-status ${isConnected ? 'connected' : 'disconnected'}`;
+        if (this.connectionStatus) {
+            this.connectionStatus.textContent = isConnected ? 'Ready' : 'Disconnected';
+            this.connectionStatus.className = `connection-status ${isConnected ? 'connected' : 'disconnected'}`;
+        }
         this.updateUI();
     }
 
-    async sendMessage(customMessage = null) {
-        const message = customMessage || this.messageInput.value.trim();
-        if (!message || !this.isEnabled || !this.isConnected) return;
+    async startBrowserSession() {
+        if (!this.isEnabled) return;
 
-        this.addMessage(message, true);
-        if (!customMessage) {
-            this.messageInput.value = '';
-        }
-
-        this.showLoading();
+        this.statusIndicator.className = 'status-indicator connecting';
+        this.statusText.textContent = 'Connecting...';
+        this.startSessionBtn.disabled = true;
 
         try {
-            const response = await this.app.sendMessage(this.app.userId, message, this.model);
-            this.hideLoading();
-            this.addMessage(response.response || 'No response received', false);
+            const response = await fetch(`${this.app.baseUrl}/start_browser_session`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    service: this.model,
+                    url: this.url
+                }),
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.sessionActive = true;
+                this.addPreviewMessage('System', 'Browser session started. You can now login and start chatting.');
+            } else {
+                throw new Error(result.error || 'Failed to start session');
+            }
         } catch (error) {
-            this.hideLoading();
-            this.addMessage(`Error: ${error.message}`, false);
+            console.error(`Failed to start session for ${this.model}:`, error);
+            this.addPreviewMessage('Error', `Failed to start session: ${error.message}`);
         }
 
         this.updateUI();
     }
 
-    addMessage(text, isUser) {
-        const message = {
-            text,
-            isUser,
-            timestamp: new Date()
-        };
-        
-        this.messages.push(message);
-        this.renderMessages();
-        this.scrollToBottom();
-    }
+    async sendIndividualMessage() {
+        const message = this.previewInput.value.trim();
+        if (!message || !this.sessionActive) return;
 
-    renderMessages() {
-        if (this.messages.length === 0) {
-            this.messagesContainer.innerHTML = `
-                <div class="empty-state">
-                    <span class="material-icons">chat_bubble_outline</span>
-                    <span>No messages yet</span>
-                </div>
-            `;
-            return;
-        }
+        this.addPreviewMessage('You', message);
+        this.previewInput.value = '';
+        this.previewInput.disabled = true;
+        this.sendIndividualBtn.disabled = true;
 
-        this.messagesContainer.innerHTML = this.messages.map(message => {
-            const time = message.timestamp.toLocaleTimeString('en-US', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit' 
+        try {
+            const response = await fetch(`${this.app.baseUrl}/send_message_to_ai`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    service: this.model,
+                    message: message
+                }),
             });
 
-            const iconName = this.getModelIcon();
+            const result = await response.json();
             
-            return `
-                <div class="message ${message.isUser ? 'user' : 'bot'}">
-                    <div class="message-avatar ${message.isUser ? 'user' : 'bot'}">
-                        <span class="material-icons">${message.isUser ? 'person' : iconName}</span>
-                    </div>
-                    <div class="message-content">
-                        <div>${message.text}</div>
-                        <div class="message-time">${time}</div>
-                    </div>
-                </div>
-            `;
-        }).join('');
+            if (result.success) {
+                this.addPreviewMessage(this.model, result.response_preview || 'Message sent successfully');
+            } else {
+                throw new Error(result.error || 'Failed to send message');
+            }
+        } catch (error) {
+            console.error(`Failed to send message to ${this.model}:`, error);
+            this.addPreviewMessage('Error', `Failed to send message: ${error.message}`);
+        }
+
+        this.previewInput.disabled = false;
+        this.sendIndividualBtn.disabled = false;
     }
 
-    showLoading() {
-        const iconName = this.getModelIcon();
-        const loadingHtml = `
-            <div class="loading-message">
-                <div class="message-avatar bot">
-                    <span class="material-icons">${iconName}</span>
-                </div>
-                <div class="loading-content">
-                    <div class="loading-spinner"></div>
-                    <span>Thinking...</span>
-                </div>
-            </div>
-        `;
-        
-        this.messagesContainer.insertAdjacentHTML('beforeend', loadingHtml);
-        this.scrollToBottom();
+    addPreviewMessage(sender, text) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `preview-message ${sender === 'You' ? 'user' : 'bot'}`;
+        messageDiv.innerHTML = `<strong>${sender}:</strong> ${text}`;
+        this.previewMessages.appendChild(messageDiv);
+        this.previewMessages.scrollTop = this.previewMessages.scrollHeight;
     }
 
-    hideLoading() {
-        const loadingMessage = this.messagesContainer.querySelector('.loading-message');
-        if (loadingMessage) {
-            loadingMessage.remove();
+    refreshSession() {
+        if (this.sessionActive) {
+            this.sessionActive = false;
+            this.updateUI();
+            this.startBrowserSession();
         }
     }
 
-    scrollToBottom() {
-        setTimeout(() => {
-            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-        }, 100);
-    }
+    async injectMessage(message) {
+        if (!this.sessionActive) return false;
 
-    copyLastResponse() {
-        const lastBotMessage = this.messages.slice().reverse().find(msg => !msg.isUser);
-        if (lastBotMessage) {
-            navigator.clipboard.writeText(lastBotMessage.text).then(() => {
-                this.showCopyFeedback();
+        try {
+            const response = await fetch(`${this.app.baseUrl}/inject_message`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    service: this.model,
+                    message: message
+                }),
             });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                this.addPreviewMessage('Broadcast', message);
+                return true;
+            }
+            return false;
+        } catch (error) {
+            console.error(`Failed to inject message into ${this.model}:`, error);
+            return false;
         }
     }
 
-    showCopyFeedback() {
-        const originalText = this.copyButton.innerHTML;
-        this.copyButton.innerHTML = '<span class="material-icons">check</span>Copied!';
-        this.copyButton.style.backgroundColor = '#4caf50';
-        
-        setTimeout(() => {
-            this.copyButton.innerHTML = originalText;
-            this.copyButton.style.backgroundColor = '';
-        }, 2000);
+    async scrapeData() {
+        if (!this.isEnabled || !this.sessionActive) return;
+
+        this.scrapeButton.disabled = true;
+        this.scrapeButton.innerHTML = '<span class="material-icons">hourglass_empty</span>Scraping...';
+
+        try {
+            const response = await fetch(`${this.app.baseUrl}/scrape_chat_data`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    service: this.model
+                }),
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                console.log(`Scraped data for ${this.model}:`, result.data_preview);
+                this.scrapeButton.innerHTML = '<span class="material-icons">check</span>Scraped!';
+                this.scrapeButton.style.backgroundColor = '#4caf50';
+                this.addPreviewMessage('System', `Data scraped: ${result.data_preview.chat_elements_count} messages`);
+                
+                setTimeout(() => {
+                    this.scrapeButton.innerHTML = '<span class="material-icons">download</span>Scrape Data';
+                    this.scrapeButton.style.backgroundColor = '';
+                    this.scrapeButton.disabled = false;
+                }, 2000);
+            } else {
+                throw new Error(result.error || 'Scraping failed');
+            }
+        } catch (error) {
+            console.error(`Failed to scrape ${this.model}:`, error);
+            this.scrapeButton.innerHTML = '<span class="material-icons">error</span>Failed';
+            this.scrapeButton.style.backgroundColor = '#f44336';
+            this.addPreviewMessage('Error', `Scraping failed: ${error.message}`);
+            
+            setTimeout(() => {
+                this.scrapeButton.innerHTML = '<span class="material-icons">download</span>Scrape Data';
+                this.scrapeButton.style.backgroundColor = '';
+                this.scrapeButton.disabled = false;
+            }, 2000);
+        }
     }
 
     getModelIcon() {
         const icons = {
-            'openai': 'chat',
+            'chatgpt': 'chat',
             'mistral': 'psychology',
-            'llama': 'smart_toy',
-            'claude': 'assistant'
+            'claude': 'assistant',
+            'gemini': 'auto_awesome'
         };
         return icons[this.model] || 'chat';
     }
